@@ -1,1 +1,4 @@
 .env
+datastorage.txt
+Dockerfile
+.github/workflows/cicd.yml

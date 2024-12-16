@@ -14,7 +14,9 @@ import (
 	"net/http"
 	"os"
 	"socialhive/database"
+	"socialhive/helper"
 	"socialhive/models"
+	"strconv"
 	"time"
 )
 
@@ -64,17 +66,76 @@ func SignUp(c *gin.Context) {
 	// add id
 	user.ID = primitive.NewObjectID()
 
-	// store the user in db
-	insertedUser, err := userCollection.InsertOne(ctx, user)
+	otpNumber, err := helper.GenerateAndSendOTP(user.Email, user.Name)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	temperaryUserCollection := database.OpenCollection(database.Client, "temp-user-collection")
+
+	tempUser := models.TemperaryUser{
+		Otp:  strconv.Itoa(otpNumber),
+		User: user,
+	}
+
+	_, err = temperaryUserCollection.InsertOne(ctx, tempUser)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	//// store the user in db
+	//insertedUser, err := userCollection.InsertOne(ctx, user)
+	//if err != nil {
+	//	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	//	return
+	//}
+	c.JSON(http.StatusOK, gin.H{"data": "otp sent successfully"})
+
+}
+
+func CreateUserByOtp(c *gin.Context) {
+	type Otp struct {
+		OtpNumber string `json:"otpNumber"`
+	}
+	var otp Otp
+	if err := c.ShouldBind(&otp); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	filter := bson.M{"otp": otp.OtpNumber}
+
+	tempUserCollection := database.OpenCollection(database.Client, "temp-user-collection")
+
+	var tempUser models.TemperaryUser
+	err := tempUserCollection.FindOne(ctx, filter).Decode(&tempUser)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if tempUser.Otp != otp.OtpNumber {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "wrong otp"})
+		return
+	}
+
+	// store the user in db
+	insertedUser, err := userCollection.InsertOne(ctx, tempUser.User)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"data": insertedUser})
+
 }
 
 func Login(c *gin.Context) {
-	fmt.Println("hii this is login controller")
 	// retrieve user data form json
 	var user models.User
 	if err := c.ShouldBind(&user); err != nil {
