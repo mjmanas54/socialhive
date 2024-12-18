@@ -220,7 +220,7 @@ func GenerateAndSendOTP(userEmail string, name string) (int, error) {
 	m := gomail.NewMessage()
 	m.SetHeader("From", os.Getenv("EMAIL_ID"))
 	m.SetHeader("To", userEmail)
-	m.SetHeader("Subject", "Subject here")
+	m.SetHeader("Subject", "Otp for sign up in SocialHive")
 	m.SetBody("text/html", htmlEmailText)
 
 	d := gomail.NewDialer("smtp.gmail.com", 587, os.Getenv("EMAIL_ID"), os.Getenv("EMAIL_PASSWORD"))

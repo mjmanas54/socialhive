@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/gridfs"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"log"
 	"os"
 	"socialhive/intializers"
 	"time"
@@ -35,3 +37,13 @@ func OpenCollection(client *mongo.Client, collectionName string) *mongo.Collecti
 	collection := client.Database(os.Getenv("DB_NAME")).Collection(collectionName)
 	return collection
 }
+
+func BucketInstance() *gridfs.Bucket {
+	gridFsBucket, err := gridfs.NewBucket(Client.Database(os.Getenv("DB_NAME")))
+	if err != nil {
+		log.Fatal(err)
+	}
+	return gridFsBucket
+}
+
+var GridFSBucket *gridfs.Bucket = BucketInstance()

@@ -66,6 +66,9 @@ func SignUp(c *gin.Context) {
 	// add id
 	user.ID = primitive.NewObjectID()
 
+	// default dp added
+	user.Dp = os.Getenv("DEFAULT_DP")
+
 	otpNumber, err := helper.GenerateAndSendOTP(user.Email, user.Name)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -224,4 +227,40 @@ func GetAllUsers(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": users})
+}
+
+func GetUserById(c *gin.Context) {
+	userId := c.Param("id")
+	objectId, err := primitive.ObjectIDFromHex(userId)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var user models.User
+	filter := bson.M{"_id": objectId}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err = userCollection.FindOne(ctx, filter).Decode(&user)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	type UserToSend struct {
+		ID        primitive.ObjectID `json:"_id"`
+		Name      string             `json:"name"`
+		Email     string             `json:"email"`
+		CreatedAt time.Time          `json:"createdAt"`
+		Dp        string             `json:"dp"`
+	}
+
+	userToSend := UserToSend{
+		ID:        user.ID,
+		Name:      user.Name,
+		Email:     user.Email,
+		CreatedAt: user.CreatedAt,
+		Dp:        user.Dp,
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": userToSend})
 }

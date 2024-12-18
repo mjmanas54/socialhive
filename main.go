@@ -29,6 +29,7 @@ func main() {
 	routes.ChatRouter(router)
 	routes.HomeRoutes(router)
 	routes.MessageRouter(router)
+	routes.PostRouter(router)
 
 	PORT := os.Getenv("PORT")
 

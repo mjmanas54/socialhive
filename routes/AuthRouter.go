@@ -10,4 +10,5 @@ func AuthRouter(incomingRoutes *gin.Engine) {
 	incomingRoutes.POST("/login", controllers.Login)
 	incomingRoutes.POST("/logout", controllers.Logout)
 	incomingRoutes.POST("/createuser", controllers.CreateUserByOtp)
+	incomingRoutes.GET("/user/:id", controllers.GetUserById)
 }
