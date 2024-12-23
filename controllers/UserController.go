@@ -246,21 +246,55 @@ func GetUserById(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	type UserToSend struct {
-		ID        primitive.ObjectID `json:"_id"`
-		Name      string             `json:"name"`
-		Email     string             `json:"email"`
-		CreatedAt time.Time          `json:"createdAt"`
-		Dp        string             `json:"dp"`
-	}
+	loggedInUserEmail := helper.ExtractEmail(c)
 
-	userToSend := UserToSend{
-		ID:        user.ID,
-		Name:      user.Name,
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-		Dp:        user.Dp,
-	}
+	if user.Email != loggedInUserEmail {
+		type UserToSend struct {
+			ID        primitive.ObjectID   `json:"_id"`
+			Name      string               `json:"name"`
+			Email     string               `json:"email"`
+			CreatedAt time.Time            `json:"createdAt"`
+			Dp        string               `json:"dp"`
+			Followers []primitive.ObjectID `json:"followers"`
+			Following []primitive.ObjectID `json:"following"`
+		}
 
-	c.JSON(http.StatusOK, gin.H{"data": userToSend})
+		userToSend := UserToSend{
+			ID:        user.ID,
+			Name:      user.Name,
+			Email:     user.Email,
+			CreatedAt: user.CreatedAt,
+			Dp:        user.Dp,
+			Followers: user.Followers,
+			Following: user.Following,
+		}
+
+		c.JSON(http.StatusOK, gin.H{"data": userToSend})
+	} else {
+		type UserToSend struct {
+			ID               primitive.ObjectID     `json:"_id"`
+			Name             string                 `json:"name"`
+			Email            string                 `json:"email"`
+			CreatedAt        time.Time              `json:"createdAt"`
+			Dp               string                 `json:"dp"`
+			Followers        []primitive.ObjectID   `json:"followers"`
+			Following        []primitive.ObjectID   `json:"following"`
+			RequestsReceived []models.FollowRequest `json:"requestsReceived"`
+			RequestsSent     []models.FollowRequest `json:"requestsSent"`
+		}
+
+		userToSend := UserToSend{
+			ID:               user.ID,
+			Name:             user.Name,
+			Email:            user.Email,
+			CreatedAt:        user.CreatedAt,
+			Dp:               user.Dp,
+			Followers:        user.Followers,
+			Following:        user.Following,
+			RequestsSent:     user.RequestsSent,
+			RequestsReceived: user.RequestsReceived,
+		}
+
+		c.JSON(http.StatusOK, gin.H{"data": userToSend})
+	}
 }

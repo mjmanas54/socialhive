@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"socialhive/database"
+	"socialhive/helper"
 	"socialhive/models"
 	"time"
 )
@@ -68,16 +69,16 @@ func CreatePost(c *gin.Context) {
 		return
 	}
 
-	filter := bson.M{"_id": uploader}
-	update := bson.M{"$push": bson.M{"posts": post}}
-
-	userCollection := database.OpenCollection(database.Client, "user-collection")
-
-	_, err = userCollection.UpdateOne(ctx, filter, update)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	//filter := bson.M{"_id": uploader}
+	//update := bson.M{"$push": bson.M{"posts": post}}
+	//
+	//userCollection := database.OpenCollection(database.Client, "user-collection")
+	//
+	//_, err = userCollection.UpdateOne(ctx, filter, update)
+	//if err != nil {
+	//	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	//	return
+	//}
 
 	c.JSON(http.StatusCreated, gin.H{"post": post})
 }
@@ -255,4 +256,48 @@ func AddComment(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": comment})
+}
+
+func GetUserFeedsByID(c *gin.Context) {
+	userIDHex := c.Param("user_id")
+	userId, err := primitive.ObjectIDFromHex(userIDHex)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	user, err := helper.GetUserById(userId)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	filter := bson.M{
+		"uploader": bson.M{
+			"$in": user.Following,
+		},
+	}
+
+	var posts []models.Post
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cursor, err := postCollection.Find(ctx, filter)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	defer cursor.Close(ctx)
+	for cursor.Next(ctx) {
+		var post models.Post
+		cursor.Decode(&post)
+		posts = append(posts, post)
+	}
+
+	for i := range posts {
+		for j := range posts[i].Images {
+			posts[i].Images[j] = os.Getenv("HOST_NAME") + "images/" + posts[i].Images[j] // Construct the URL
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"posts": posts})
 }

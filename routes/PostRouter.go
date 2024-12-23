@@ -14,4 +14,5 @@ func PostRouter(incomingRoutes *gin.Engine) {
 	incomingRoutes.GET("images/:image_id", controllers.GetImage)
 	incomingRoutes.GET("/update_likes/:action/:post_id/:user_id", controllers.UpdateLikes)
 	incomingRoutes.POST("/add_comment", controllers.AddComment)
+	incomingRoutes.GET("feeds/:user_id", controllers.GetUserFeedsByID)
 }
