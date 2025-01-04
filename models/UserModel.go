@@ -16,4 +16,6 @@ type User struct {
 	Following        []primitive.ObjectID `json:"following" bson:"following"`
 	RequestsReceived []FollowRequest      `json:"requestsReceived" bson:"requestsReceived"`
 	RequestsSent     []FollowRequest      `json:"requestsSent" bson:"requestsSent"`
+	LastActive       time.Time            `json:"lastActive" bson:"lastActive"`
+	IsActive         bool                 `json:"isActive" bson:"isActive"`
 }

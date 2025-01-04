@@ -37,6 +37,15 @@ var upgrader = websocket.Upgrader{
 }
 
 func (s *Server) HandleWS(c *gin.Context) {
+
+	email := helper.ExtractEmail(c)
+
+	_, exists := s.email[email]
+	//if exists {
+	//	c.JSON(400, gin.H{"message": "connection already made"})
+	//	return
+	//}
+
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		fmt.Println("Failed to upgrade connection:", err)
@@ -52,18 +61,99 @@ func (s *Server) HandleWS(c *gin.Context) {
 
 	fmt.Println("New incoming connection from client:", conn.RemoteAddr())
 
-	email := helper.ExtractEmail(c)
-
 	s.mut.Lock()
 	s.conns[conn] = true
 	s.email[email] = conn
 	s.mut.Unlock()
+	userCollection := database.OpenCollection(database.Client, "user-collection")
+	filter := bson.M{"email": email}
+	update := bson.M{"$set": bson.M{
+		"lastActive": time.Time{},
+		"isActive":   true,
+	}}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+	_, err = userCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	cancel()
+
+	if !exists {
+		s.sendOnlineSignal(conn, email)
+	}
 
 	s.readLoop(conn, email, c)
 
 	s.mut.Lock()
 	delete(s.conns, conn)
+	delete(s.email, email)
 	s.mut.Unlock()
+
+	s.sendOfflineSignal(conn, email)
+
+	filter = bson.M{"email": email}
+	update = bson.M{"$set": bson.M{
+		"lastActive": time.Now(),
+		"isActive":   false,
+	}}
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err = userCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func (s *Server) sendOnlineSignal(senderConn *websocket.Conn, senderEmail string) {
+	type MsgToBroadcast struct {
+		Action string `json:"action"`
+		Email  string `json:"message_content"`
+	}
+
+	msgToBroadcast := MsgToBroadcast{
+		Action: "online",
+		Email:  senderEmail,
+	}
+
+	msgJson, _ := json.Marshal(msgToBroadcast)
+
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
+	for email := range s.email {
+		if email != senderEmail {
+			go s.sendMessage(s.email[email], string(msgJson))
+		}
+	}
+
+}
+
+func (s *Server) sendOfflineSignal(senderConn *websocket.Conn, senderEmail string) {
+	type MsgToBroadcast struct {
+		Action string `json:"action"`
+		Email  string `json:"message_content"`
+	}
+
+	msgToBroadcast := MsgToBroadcast{
+		Action: "offline",
+		Email:  senderEmail,
+	}
+
+	msgJson, _ := json.Marshal(msgToBroadcast)
+
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
+	for email := range s.email {
+		if email != senderEmail {
+			go s.sendMessage(s.email[email], string(msgJson))
+		}
+	}
+
 }
 
 func (s *Server) readLoop(conn *websocket.Conn, senderEmail string, c *gin.Context) {
@@ -82,7 +172,6 @@ func (s *Server) readLoop(conn *websocket.Conn, senderEmail string, c *gin.Conte
 }
 
 func (s *Server) broadcast(senderConnection *websocket.Conn, c *gin.Context, msg []byte, senderEmail string) {
-
 	type Message struct {
 		Action string `json:"action"`
 		To     string `json:"to"`
